@@ -1,0 +1,253 @@
+.button {
+  --accent: #9c2739; /* maroon-400 — lifted off the dark surface so the
+                        door and figure stay legible */
+  --walk: 220ms;
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.5rem 0.75rem 0.5rem 1.25rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.button:active {
+  transform: scale(0.98);
+}
+
+/* The ring sits outside the button, so it must contrast with the page rather
+   than the button — hence its own token instead of reusing --accent. */
+.button:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 3px;
+}
+
+.button[aria-busy="true"] {
+  cursor: default;
+}
+
+.button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.dark {
+  --accent: #b8394d; /* brightened maroon — maroon-500 goes muddy on ink */
+  --bg: #1a171a; /* ink-800 */
+  --text: #fff;
+  --doorway: #0c0a0b; /* gray-950 — the void past the door */
+  --knob: #fff;
+}
+
+.light {
+  --accent: #7b1e2c; /* maroon-500 */
+  --bg: #faf7f8; /* gray-50 */
+  --text: #171315; /* gray-900 */
+  --doorway: #121013; /* ink-900 */
+  --knob: #faf7f8;
+}
+
+/* Brand fill, white door and figure — matches the primary buttons site-wide. */
+.brand {
+  --accent: #fff;
+  --bg: #7b1e2c; /* maroon-500 */
+  --text: #fff;
+  --doorway: #350c12; /* maroon-800 — the dark beyond the door */
+  --knob: #0a0809; /* black handle, matching the header button */
+  --focus: #5e1622; /* maroon-600, readable on the page behind the button */
+}
+
+.brand:hover:not([aria-busy="true"]):not([aria-disabled="true"]) {
+  --bg: #9c2739; /* maroon-400, matching the hover on the standard buttons */
+}
+
+/* Header bar: sits on glass, so no fill of its own — black label with the
+   system red door and figure, turning red on hover with a thin red border to
+   match the other bar items. Declared after .button so the border wins. */
+.bar {
+  --accent: #c9394a;
+  --bg: transparent;
+  --text: #fff;
+  --arrow: #fff; /* matches the white bar text; still goes red on hover */
+  --doorway: #0a0809;
+  --knob: #0a0809; /* black handle — the door itself is the accent red */
+  --focus: #c9394a;
+  border: 1px solid transparent;
+  transition: transform 0.15s, background-color 0.15s, border-color 0.2s,
+    color 0.2s, box-shadow 0.2s;
+}
+
+.bar:hover:not([aria-busy="true"]):not([aria-disabled="true"]) {
+  --text: #c9394a;
+  border-color: #c9394a;
+  box-shadow: 0 0 14px -4px rgba(201, 57, 74, 0.9);
+}
+
+.brand:active {
+  --bg: #5e1622; /* maroon-600 */
+}
+
+.text {
+  white-space: nowrap;
+}
+
+/* Arrow between the label and the doorway — points the eye toward the exit,
+   leans forward on hover and trails off once the figure is walking. */
+.arrow {
+  display: flex;
+  align-items: center;
+  /* Own token so a variant can lift it off a dark fill if needed. */
+  color: var(--arrow, #0a0809);
+  transition: transform 0.3s, opacity 0.3s, color 0.2s;
+}
+
+/* Set on the button, not the arrow, so it lands on every variant at once.
+   The custom property itself does not animate, but `color` resolving from it
+   does — which is why the transition above is on the arrow. */
+.button:not([aria-busy="true"]):not([aria-disabled="true"]):hover {
+  --arrow: #c9394a;
+}
+
+.button[data-stage="idle"]:not([data-done]):hover .arrow {
+  transform: translateX(3px);
+}
+
+.button[data-stage="walking1"] .arrow,
+.button[data-stage="walking2"] .arrow,
+.button[data-stage="falling"] .arrow,
+.button[data-stage="closing"] .arrow,
+.button[data-done] .arrow {
+  transform: translateX(7px);
+  opacity: 0.3;
+}
+
+.icon {
+  display: block;
+  overflow: visible;
+}
+
+.doorway {
+  fill: var(--doorway);
+}
+
+/* ---------- Door ---------- */
+
+.door {
+  fill: var(--accent);
+  transform-box: view-box;
+  transform-origin: 44px 17px; /* hinge on the right edge */
+  transition: transform 350ms ease-in-out;
+}
+
+.knob {
+  fill: var(--knob);
+}
+
+/* ---------- Figure ---------- */
+
+.figure {
+  fill: var(--accent);
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 350ms linear, opacity 300ms;
+}
+
+.figure line {
+  fill: none;
+  transform-box: view-box;
+}
+
+.legA,
+.legB {
+  transform-origin: 22.5px 20px;
+}
+
+.armA,
+.armB {
+  transform-origin: 23.6px 13px;
+}
+
+/* ---------- Hover: door cracks open, figure leans in ---------- */
+
+.button[data-stage="idle"]:not([data-done]):hover .door {
+  transform: scaleX(0.8);
+}
+
+.button[data-stage="idle"]:not([data-done]):hover .figure {
+  transform: translateX(2px);
+}
+
+/* ---------- Click sequence ---------- */
+
+.button[data-stage="walking1"] .figure {
+  transform: translateX(6px);
+}
+
+.button[data-stage="walking1"] .door {
+  transform: scaleX(0.5);
+}
+
+.button[data-stage="walking2"] .figure {
+  transform: translateX(14px);
+  transition-duration: 450ms;
+}
+
+.button[data-stage="walking2"] .door,
+.button[data-stage="falling"] .door {
+  transform: scaleX(0.12);
+}
+
+.button[data-stage="walking1"] .legA,
+.button[data-stage="walking2"] .legA,
+.button[data-stage="walking1"] .armB,
+.button[data-stage="walking2"] .armB {
+  animation: swing var(--walk) ease-in-out infinite alternate;
+}
+
+.button[data-stage="walking1"] .legB,
+.button[data-stage="walking2"] .legB,
+.button[data-stage="walking1"] .armA,
+.button[data-stage="walking2"] .armA {
+  animation: swing var(--walk) ease-in-out infinite alternate-reverse;
+}
+
+.button[data-stage="falling"] .figure {
+  transform: translate(14px, 30px) rotate(120deg);
+  transition: transform 600ms cubic-bezier(0.7, 0, 1, 1);
+}
+
+.button[data-stage="closing"] .figure,
+.button[data-done] .figure {
+  transform: translate(14px, 30px);
+  opacity: 0;
+  transition: none;
+}
+
+.button[data-stage="closing"] .door {
+  transform: scaleX(1);
+}
+
+@keyframes swing {
+  from {
+    transform: rotate(-22deg);
+  }
+  to {
+    transform: rotate(22deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .door,
+  .figure,
+  .arrow {
+    transition: none;
+  }
+}

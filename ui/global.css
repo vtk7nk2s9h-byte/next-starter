@@ -2,6 +2,142 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand: #7b1e2c; /* maroon-500 */
+  --brand-dark: #5e1622; /* maroon-600 */
+  --ink: #121013; /* ink-900 */
+  color-scheme: dark;
+}
+
+/* The app's ground. Layered rather than a single ramp so the black reads as a
+   lit room instead of a flat fill: a warm key light spilling from behind the
+   header, a cool bounce in the opposite corner to keep the shadows from going
+   dead, then the base gradient. Fixed so it doesn't slide as the page scrolls. */
+body {
+  min-height: 100vh;
+  background-color: #0a0809;
+  background-image:
+    radial-gradient(
+      75rem 34rem at 50% -12rem,
+      rgba(217, 80, 95, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      55rem 30rem at 88% 108%,
+      rgba(96, 74, 116, 0.1),
+      transparent 62%
+    ),
+    linear-gradient(180deg, #161214 0%, #0d0b0c 46%, #0a0809 100%);
+  background-attachment: fixed;
+  color: #f7f4f5;
+}
+
+/* shadcn/ui semantic tokens. HSL channels only — Tailwind wraps them as
+   hsl(var(--token)) so the /50 opacity modifiers keep working. Values are the
+   project's maroon/ink palette rather than shadcn's stock neutrals. */
+@layer base {
+  /* Dark by default — the app has no white surfaces. .dark below repeats these
+     so Tailwind's dark: variants and the theme toggle stay consistent. */
+  :root {
+    --background: 280 9% 7%; /* ink-900 */
+    --foreground: 0 0% 98%;
+    /* Kept in step with the gray ladder in tailwind.config.ts: card/popover
+       are gray-100, border/input are gray-200. */
+    --card: 336 10% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 336 10% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 351 55% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 320 8% 16%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 320 8% 16%;
+    --muted-foreground: 340 6% 65%;
+    --accent: 351 38% 20%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 320 8% 16%;
+    --input: 320 8% 16%;
+    --ring: 351 55% 45%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 280 9% 7%; /* ink-900 */
+    --foreground: 0 0% 98%;
+    --card: 280 8% 9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 280 8% 9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 351 55% 42%; /* lifted maroon, legible on ink */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 300 6% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 300 6% 14%;
+    --muted-foreground: 340 6% 65%;
+    --accent: 351 40% 18%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 280 6% 18%;
+    --input: 280 6% 18%;
+    --ring: 351 55% 45%;
+  }
+}
+
+/* @tailwindcss/forms hard-codes a blue focus ring on every control.
+   Repoint it (and the native accent/selection colours) at the brand. */
+@layer base {
+  /* The forms plugin hard-codes a white fill on every control. */
+  [type='text'],
+  [type='email'],
+  [type='password'],
+  [type='number'],
+  [type='search'],
+  [type='date'],
+  select,
+  textarea {
+    background-color: #171315; /* gray-100 (raised surface) */
+    color: #f5f1f2;
+    border-color: #262023;
+  }
+
+  [type='text']:focus,
+  [type='email']:focus,
+  [type='password']:focus,
+  [type='number']:focus,
+  [type='search']:focus,
+  [type='date']:focus,
+  select:focus,
+  textarea:focus {
+    --tw-ring-color: var(--brand);
+    border-color: var(--brand);
+    outline-color: var(--brand);
+  }
+
+  [type='checkbox'],
+  [type='radio'] {
+    accent-color: var(--brand);
+  }
+
+  [type='checkbox']:checked,
+  [type='radio']:checked {
+    background-color: var(--brand);
+    border-color: var(--brand);
+  }
+
+  [type='checkbox']:focus,
+  [type='radio']:focus {
+    --tw-ring-color: var(--brand);
+  }
+
+  ::selection {
+    background-color: var(--brand);
+    color: #fff;
+  }
+}
+
 input[type='number'] {
   -moz-appearance: textfield;
   appearance: textfield;
