@@ -70,22 +70,22 @@
    system red door and figure, turning red on hover with a thin red border to
    match the other bar items. Declared after .button so the border wins. */
 .bar {
-  --accent: #c9394a;
+  --accent: #8c1925;
   --bg: transparent;
   --text: #fff;
   --arrow: #fff; /* matches the white bar text; still goes red on hover */
   --doorway: #0a0809;
   --knob: #0a0809; /* black handle — the door itself is the accent red */
-  --focus: #c9394a;
+  --focus: #8c1925;
   border: 1px solid transparent;
   transition: transform 0.15s, background-color 0.15s, border-color 0.2s,
     color 0.2s, box-shadow 0.2s;
 }
 
 .bar:hover:not([aria-busy="true"]):not([aria-disabled="true"]) {
-  --text: #c9394a;
-  border-color: #c9394a;
-  box-shadow: 0 0 14px -4px rgba(201, 57, 74, 0.9);
+  --text: #8c1925;
+  border-color: #8c1925;
+  box-shadow: 0 0 14px -4px rgba(140, 25, 37, 0.9);
 }
 
 .brand:active {
@@ -110,7 +110,7 @@
    The custom property itself does not animate, but `color` resolving from it
    does — which is why the transition above is on the arrow. */
 .button:not([aria-busy="true"]):not([aria-disabled="true"]):hover {
-  --arrow: #c9394a;
+  --arrow: #8c1925;
 }
 
 .button[data-stage="idle"]:not([data-done]):hover .arrow {

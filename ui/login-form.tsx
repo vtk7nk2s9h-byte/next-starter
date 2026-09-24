@@ -7,6 +7,7 @@ import {
   ExclamationCircleIcon,
 } from '@heroicons/react/24/outline';
 import DoorButton from '@/app/ui/log-out-button';
+import Link from 'next/link';
 import { useActionState } from 'react';
 import { authenticate } from '@/app/lib/actions';
 import { useSearchParams } from 'next/navigation';
@@ -85,6 +86,17 @@ export default function LoginForm() {
               <p className="text-sm text-red-500">{errorMessage}</p>
             </>
           )}
+        </div>
+
+        {/* Outside the primary action, and a link rather than a button, so it
+            never reads as a second way to submit this form. */}
+        <div className="mt-2 border-t border-gray-200 pt-4">
+          <Link
+            href="/signup"
+            className="flex w-full items-center justify-center rounded-md border border-maroon-400/40 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-900 transition-colors duration-200 hover:border-brand-red hover:text-brand-red-lit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-400"
+          >
+            Create an account
+          </Link>
         </div>
       </div>
     </form>

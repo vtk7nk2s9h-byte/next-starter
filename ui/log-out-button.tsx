@@ -31,7 +31,7 @@ type Props = {
    * this for navigation so the destination starts loading immediately and the
    * figure finishes walking on its own.
    */
-  onStart?: () => void;
+  onStartAction?: () => void;
   /** Called when the animation finishes (e.g. sign the user out here) */
   onLogout?: () => void | Promise<void>;
   /** Reset the button after this many ms. Set to 0 to keep it in the final state. */
@@ -45,7 +45,7 @@ export default function LogoutButton({
   label = "Log Out",
   variant = "dark",
   type = "button",
-  onStart,
+  onStartAction,
   onLogout,
   resetAfter = 1200,
   disabled = false,
@@ -71,7 +71,7 @@ export default function LogoutButton({
 
     // Fires before anything else, so a caller that navigates here is not
     // waiting on the ~1.9s sequence.
-    onStart?.();
+    onStartAction?.();
 
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"

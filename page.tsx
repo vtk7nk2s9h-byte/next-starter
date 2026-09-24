@@ -1,4 +1,3 @@
-import AcmeLogo from '@/app/ui/acme-logo';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { lusitana } from '@/app/ui/fonts';
@@ -6,17 +5,23 @@ import styles from '@/app/ui/home.module.css';
 import Image from 'next/image';
 import ReflectiveDiv from "@/app/ui/dashboard/reflective-div";
 import NavigationMenu from "@/app/ui/dashboard/navigation-menu";
+import ScrollGlobe from "@/components/ui/scroll-globe";
+import {
+  FeaturesSection,
+  ServicesSection,
+  UseCasesSection,
+} from "@/components/ui/site-sections";
 
 
 
 export default function Page() {
 
   return (
+    <>
     <main className="flex min-h-screen flex-col p-6">
 
         <div className={styles.shape} />
       <div className="flex h-20 shrink-0 items-end rounded-lg bg-gradient-to-br from-maroon-600 to-ink-900 p-4 md:h-52">
-        <AcmeLogo />
       </div>
       <NavigationMenu />
       <div className="mt-4 flex grow flex-col gap-4 md:flex-row">
@@ -58,5 +63,24 @@ export default function Page() {
         </div>
       </div>
     </main>
+
+    {/* Sticky, scroll-driven stage. Sits outside <main> so no ancestor with
+        padding or overflow can break position: sticky. */}
+    <ScrollGlobe />
+
+    <FeaturesSection />
+    <UseCasesSection />
+    <ServicesSection />
+
+    {/* Scratch height for testing: ten stacked cards so there is page left to
+        scroll after the globe's own 600vh. */}
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-28 px-6 py-24">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <ReflectiveDiv key={i} width="100%" height={160} radius={16}>
+          CARD {String(i + 1).padStart(2, '0')}
+        </ReflectiveDiv>
+      ))}
+    </section>
+    </>
   );
 }
