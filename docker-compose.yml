@@ -1,0 +1,33 @@
+# Local Postgres for Prisma. Bring it up with:
+#
+#   docker compose up -d
+#
+# The credentials here are deliberately boring and local-only — they match the
+# DATABASE_URL in .env. Nothing in this file should ever hold a real secret.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: nextjs-dashboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nextjs_dashboard
+    ports:
+      # Host 5433, not 5432: this machine runs a native PostgreSQL service that
+      # already owns 5432, and it answers localhost first — connections meant
+      # for this container silently reach that server instead. Keep these in
+      # step with DATABASE_URL in .env.
+      - '5433:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # Lets `docker compose up --wait` block until the server actually
+      # accepts connections, rather than just until the container starts.
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d nextjs_dashboard']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

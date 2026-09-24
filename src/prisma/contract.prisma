@@ -1,0 +1,846 @@
+// use prisma-8
+// =============================================================================
+// VOXPOINT — data contract v1
+// =============================================================================
+// Read top to bottom: Auth -> Organizations -> Agents -> Telephony/Calls ->
+// Public demo funnel -> Billing -> Admin/ops -> Sector templates.
+//
+// Conventions used throughout:
+// - id: uuid() everywhere, so ids are unguessable. (The original draft said
+//   cuid(); Prisma 8's SQL PSL provider rejects cuid() even though its error
+//   text lists it, so uuid() is the working equivalent.)
+// - money: integer minor units (…Cents), never float.
+// - time: TimestamptzString is UTC. The *String temporal types carry
+//   PostgreSQL's own text rather than Temporal values, so no global Temporal
+//   is needed at query time. Human-facing hours are "HH:mm" strings + an IANA
+//   timezone string, formatted in code.
+// - every tenant-owned row carries organizationId with an index.
+// - soft delete (deletedAt) only where "undo" or audit history matters;
+//   Prisma 8 has no built-in soft delete, so those queries must filter
+//   explicitly.
+// - raw third-party payloads are kept as Json for the first months — cheap
+//   insurance while the integration is still young.
+// =============================================================================
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+// Prisma 8 enums declare their storage codec and map each member to its
+// database value explicitly; the planner derives a CHECK constraint from the
+// value set.
+
+enum SystemRole {
+  @@type("pg/text@1")
+  USER      = "USER" // normal member of one or more orgs
+  SUPPORT   = "SUPPORT" // internal staff, read-mostly via superuser dashboard
+  SUPERUSER = "SUPERUSER" // full internal admin
+}
+
+enum UserStatus {
+  @@type("pg/text@1")
+  ACTIVE   = "ACTIVE"
+  DISABLED = "DISABLED"
+}
+
+enum OrgRole {
+  @@type("pg/text@1")
+  OWNER  = "OWNER"
+  ADMIN  = "ADMIN"
+  MEMBER = "MEMBER"
+  VIEWER = "VIEWER"
+}
+
+enum MembershipStatus {
+  @@type("pg/text@1")
+  INVITED = "INVITED"
+  ACTIVE  = "ACTIVE"
+  REMOVED = "REMOVED"
+}
+
+enum OrgStatus {
+  @@type("pg/text@1")
+  TRIAL     = "TRIAL"
+  ACTIVE    = "ACTIVE"
+  PAST_DUE  = "PAST_DUE"
+  SUSPENDED = "SUSPENDED"
+  CHURNED   = "CHURNED"
+}
+
+enum Plan {
+  @@type("pg/text@1")
+  FREE       = "FREE"
+  STARTER    = "STARTER"
+  PRO        = "PRO"
+  ENTERPRISE = "ENTERPRISE"
+}
+
+enum Weekday {
+  @@type("pg/text@1")
+  MONDAY    = "MONDAY"
+  TUESDAY   = "TUESDAY"
+  WEDNESDAY = "WEDNESDAY"
+  THURSDAY  = "THURSDAY"
+  FRIDAY    = "FRIDAY"
+  SATURDAY  = "SATURDAY"
+  SUNDAY    = "SUNDAY"
+}
+
+enum AgentStatus {
+  @@type("pg/text@1")
+  DRAFT     = "DRAFT"
+  PUBLISHED = "PUBLISHED"
+  PAUSED    = "PAUSED"
+  ARCHIVED  = "ARCHIVED"
+}
+
+enum KnowledgeSourceType {
+  @@type("pg/text@1")
+  FILE = "FILE"
+  URL  = "URL"
+  TEXT = "TEXT"
+}
+
+enum KnowledgeDocStatus {
+  @@type("pg/text@1")
+  PENDING  = "PENDING"
+  INDEXING = "INDEXING"
+  INDEXED  = "INDEXED"
+  FAILED   = "FAILED"
+}
+
+enum CallDirection {
+  @@type("pg/text@1")
+  INBOUND  = "INBOUND"
+  OUTBOUND = "OUTBOUND"
+  WEB      = "WEB"
+}
+
+enum CallStatus {
+  @@type("pg/text@1")
+  REGISTERED = "REGISTERED"
+  ONGOING    = "ONGOING"
+  ENDED      = "ENDED"
+  ANALYZED   = "ANALYZED"
+  FAILED     = "FAILED"
+}
+
+enum CallSentiment {
+  @@type("pg/text@1")
+  POSITIVE = "POSITIVE"
+  NEUTRAL  = "NEUTRAL"
+  NEGATIVE = "NEGATIVE"
+  UNKNOWN  = "UNKNOWN"
+}
+
+enum TranscriptRole {
+  @@type("pg/text@1")
+  AGENT  = "AGENT"
+  USER   = "USER"
+  SYSTEM = "SYSTEM"
+}
+
+enum DemoLeadStatus {
+  @@type("pg/text@1")
+  NEW       = "NEW"
+  CALLED    = "CALLED"
+  ANALYZED  = "ANALYZED"
+  EMAILED   = "EMAILED"
+  CONVERTED = "CONVERTED"
+  ABANDONED = "ABANDONED"
+}
+
+enum SubscriptionStatus {
+  @@type("pg/text@1")
+  TRIALING = "TRIALING"
+  ACTIVE   = "ACTIVE"
+  PAST_DUE = "PAST_DUE"
+  CANCELED = "CANCELED"
+  UNPAID   = "UNPAID"
+}
+
+enum InvoiceStatus {
+  @@type("pg/text@1")
+  DRAFT         = "DRAFT"
+  OPEN          = "OPEN"
+  PAID          = "PAID"
+  UNCOLLECTIBLE = "UNCOLLECTIBLE"
+  VOID          = "VOID"
+}
+
+enum FeatureFlagScope {
+  @@type("pg/text@1")
+  GLOBAL       = "GLOBAL"
+  ORGANIZATION = "ORGANIZATION"
+}
+
+enum WebhookProvider {
+  @@type("pg/text@1")
+  RETELL = "RETELL"
+  STRIPE = "STRIPE"
+  RESEND = "RESEND"
+}
+
+enum NotificationType {
+  @@type("pg/text@1")
+  MISSED_CALL         = "MISSED_CALL"
+  CALL_TRANSFERRED    = "CALL_TRANSFERRED"
+  AGENT_PUBLISHED     = "AGENT_PUBLISHED"
+  BUDGET_WARNING      = "BUDGET_WARNING"
+  BILLING_ISSUE       = "BILLING_ISSUE"
+  MEMBER_INVITED      = "MEMBER_INVITED"
+  SYSTEM_ANNOUNCEMENT = "SYSTEM_ANNOUNCEMENT"
+}
+
+enum AuditActorType {
+  @@type("pg/text@1")
+  USER      = "USER"
+  SUPERUSER = "SUPERUSER"
+  SYSTEM    = "SYSTEM"
+}
+
+// =============================================================================
+// AUTH & USERS
+// =============================================================================
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  emailVerifiedAt TimestamptzString?
+  name            String?
+  image           String?
+  phone           String?
+  // Credentials sign-up writes a bcrypt hash here. Null for accounts that
+  // only ever authenticate through a provider in Account.
+  passwordHash    String?
+  timezone        String            @default("UTC")
+  locale          String            @default("en")
+  systemRole      SystemRole        @default(USER)
+  status          UserStatus        @default(ACTIVE)
+  lastLoginAt     TimestamptzString?
+  createdAt       TimestamptzString @default(now())
+  updatedAt       temporal.updatedAtString()
+
+  accounts      Account[]
+  sessions      Session[]
+  memberships   Membership[]      @relation("MembershipMember")
+  notifications Notification[]
+
+  // things this user created / actioned, across the app
+  createdAgents     Agent[]             @relation("AgentCreatedBy")
+  publishedVersions AgentVersion[]      @relation("VersionPublishedBy")
+  createdDocuments  KnowledgeDocument[] @relation("DocumentCreatedBy")
+  sentInvites       Membership[]        @relation("MembershipInvitedBy")
+  createdApiKeys    ApiKey[]            @relation("ApiKeyCreatedBy")
+  revokedApiKeys    ApiKey[]            @relation("ApiKeyRevokedBy")
+  auditLogEntries   AuditLog[]          @relation("AuditActorUser")
+
+  @@index([email])
+}
+
+// Auth.js / Better-Auth compatible adapter tables — works with either.
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // "google", "email" (magic link), etc.
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         Int?
+  tokenType         String?
+  scope             String?
+  idToken           String?
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String            @id @default(uuid())
+  sessionToken String            @unique
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    TimestamptzString
+  createdAt    TimestamptzString @default(now())
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String // usually the email
+  token      String            @unique
+  expiresAt  TimestamptzString
+
+  @@unique([identifier, token])
+}
+
+// =============================================================================
+// ORGANIZATIONS (tenants)
+// =============================================================================
+
+model Organization {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  industry    String? // free text or a key into SectorTemplate
+  description String?
+  website     String?
+  logoUrl     String?
+  timezone    String    @default("UTC")
+  language    String    @default("en")
+  status      OrgStatus @default(TRIAL)
+  plan        Plan      @default(FREE)
+  trialEndsAt TimestamptzString?
+
+  // billing shortcuts kept on the org for cheap reads; source of truth is
+  // Subscription/Invoice
+  billingEmail      String?
+  stripeCustomerId  String? @unique
+  minutesIncluded   Int     @default(0)
+  minutesUsedRecord Int     @default(0)
+
+  // operational settings
+  recordCalls        Boolean @default(true)
+  allowHumanTransfer Boolean @default(false)
+  dataRetentionDays  Int     @default(365)
+  dailyBudgetCents   Int? // null = uncapped
+  notificationEmail  String?
+
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+  deletedAt TimestamptzString? // soft delete: keep billing/audit history
+
+  memberships         Membership[]
+  locations           OrganizationLocation[]
+  agents              Agent[]
+  phoneNumbers        PhoneNumber[]
+  calls               Call[]
+  knowledgeDocuments  KnowledgeDocument[]
+  usageCounters       UsageCounter[]
+  subscription        Subscription?
+  invoices            Invoice[]
+  apiKeys             ApiKey[]
+  integrations        Integration[]
+  featureFlagOverride FeatureFlag[]
+  auditLogEntries     AuditLog[]
+  notifications       Notification[]
+  convertedFrom       DemoLead[]             @relation("DemoLeadConvertedOrg")
+
+  @@index([status])
+  @@index([plan])
+}
+
+model Membership {
+  id              String            @id @default(uuid())
+  userId          String
+  user            User              @relation("MembershipMember", fields: [userId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role            OrgRole           @default(MEMBER)
+  status          MembershipStatus  @default(ACTIVE)
+  invitedByUserId String?
+  invitedBy       User?             @relation("MembershipInvitedBy", fields: [invitedByUserId], references: [id])
+  invitedAt       TimestamptzString?
+  joinedAt        TimestamptzString?
+  removedAt       TimestamptzString?
+  createdAt       TimestamptzString @default(now())
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+}
+
+// A facility can have more than one physical location (scalability: chains,
+// multi-branch clinics, franchise restaurants).
+model OrganizationLocation {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  label          String // "Main branch", "Downtown"
+  addressLine1   String
+  addressLine2   String?
+  city           String
+  region         String?
+  postalCode     String?
+  country        String // ISO 3166-1 alpha-2
+  latitude       Float?
+  longitude      Float?
+  timezone       String
+  phone          String?
+  email          String?
+  isPrimary      Boolean      @default(false)
+  createdAt      TimestamptzString @default(now())
+  updatedAt      temporal.updatedAtString()
+
+  businessHours   BusinessHour[]
+  hoursExceptions BusinessHourException[]
+  phoneNumbers    PhoneNumber[]
+
+  @@index([organizationId])
+}
+
+model BusinessHour {
+  id         String               @id @default(uuid())
+  locationId String
+  location   OrganizationLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  weekday    Weekday
+  isClosed   Boolean              @default(false)
+  opensAt    String? // "09:00"
+  closesAt   String? // "18:00", may cross midnight (handled in code)
+
+  @@unique([locationId, weekday])
+}
+
+// One-off overrides: holidays, special closures, extended hours.
+model BusinessHourException {
+  id         String               @id @default(uuid())
+  locationId String
+  location   OrganizationLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  date       DateString
+  isClosed   Boolean              @default(true)
+  opensAt    String?
+  closesAt   String?
+  reason     String? // "Public holiday", "Staff training"
+
+  @@unique([locationId, date])
+}
+
+// =============================================================================
+// AGENTS & KNOWLEDGE
+// =============================================================================
+
+model Agent {
+  id               String        @id @default(uuid())
+  organizationId   String
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  status           AgentStatus   @default(DRAFT)
+  retellAgentId    String?       @unique
+  currentVersionId String?       @unique
+  currentVersion   AgentVersion? @relation("AgentCurrentVersion", fields: [currentVersionId], references: [id])
+  createdByUserId  String?
+  createdBy        User?         @relation("AgentCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt        TimestamptzString @default(now())
+  updatedAt        temporal.updatedAtString()
+  archivedAt       TimestamptzString?
+
+  versions           AgentVersion[]      @relation("AgentVersions")
+  phoneNumbers       PhoneNumber[]
+  calls              Call[]
+  knowledgeDocuments KnowledgeDocument[]
+
+  @@index([organizationId, status])
+}
+
+// Every publish creates a new immutable version — full history, easy rollback.
+model AgentVersion {
+  id                   String @id @default(uuid())
+  agentId              String
+  agent                Agent  @relation("AgentVersions", fields: [agentId], references: [id], onDelete: Cascade)
+  version              Int
+  promptTemplate       String
+  variablesSchema      Json // { key: { required: bool, description: string } }
+  voiceId              String
+  llmModel             String @default("gpt-4o-mini") // provider-side model choice
+  language             String @default("en")
+  temperature          Float  @default(0.4)
+  maxCallDurationMs    Int    @default(600000)
+  endCallSilenceMs     Int    @default(20000)
+  retellAgentVersionId String?
+  changelog            String?
+  publishedByUserId    String?
+  publishedBy          User?  @relation("VersionPublishedBy", fields: [publishedByUserId], references: [id])
+  publishedAt          TimestamptzString?
+  createdAt            TimestamptzString @default(now())
+
+  usedAsCurrentFor Agent? @relation("AgentCurrentVersion")
+  calls            Call[]
+
+  @@unique([agentId, version])
+}
+
+model KnowledgeDocument {
+  id                    String              @id @default(uuid())
+  organizationId        String
+  organization          Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId               String?
+  agent                 Agent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  title                 String
+  sourceType            KnowledgeSourceType
+  sourceUrl             String?
+  filePath              String?
+  textContent           String?
+  sizeBytes             Int?
+  retellKnowledgeBaseId String?
+  status                KnowledgeDocStatus  @default(PENDING)
+  indexedAt             TimestamptzString?
+  errorMessage          String?
+  createdByUserId       String?
+  createdBy             User?               @relation("DocumentCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt             TimestamptzString   @default(now())
+  updatedAt             temporal.updatedAtString()
+
+  @@index([organizationId])
+  @@index([agentId])
+}
+
+// =============================================================================
+// TELEPHONY & CALLS (production, org-scoped)
+// =============================================================================
+
+model PhoneNumber {
+  id                  String                @id @default(uuid())
+  organizationId      String
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  locationId          String?
+  location            OrganizationLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  agentId             String?
+  agent               Agent?                @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  e164                String                @unique
+  label               String?
+  country             String
+  areaCode            String?
+  retellPhoneNumberId String?               @unique
+  monthlyCostCents    Int                   @default(0)
+  isActive            Boolean               @default(true)
+  purchasedAt         TimestamptzString     @default(now())
+  releasedAt          TimestamptzString?
+
+  calls Call[]
+
+  @@index([organizationId])
+}
+
+model Call {
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String
+  agent          Agent         @relation(fields: [agentId], references: [id])
+  agentVersionId String?
+  agentVersion   AgentVersion? @relation(fields: [agentVersionId], references: [id])
+  phoneNumberId  String?
+  phoneNumber    PhoneNumber?  @relation(fields: [phoneNumberId], references: [id])
+
+  retellCallId String        @unique
+  direction    CallDirection
+  status       CallStatus    @default(REGISTERED)
+
+  fromNumber String?
+  toNumber   String?
+  callerName String?
+
+  startedAt        TimestamptzString?
+  endedAt          TimestamptzString?
+  durationMs       Int?
+  disconnectReason String?
+
+  transferredTo String?
+  transferredAt TimestamptzString?
+
+  recordingUrl    String?
+  consentToRecord Boolean @default(true)
+
+  transcript String?
+  summary    String?
+  sentiment  CallSentiment @default(UNKNOWN)
+
+  dynamicVariables   Json? // what we sent in
+  collectedVariables Json? // what Retell collected during the call
+  costCents          Int?  @default(0)
+  // No default: @default([]) lowers to an invalid '[]'::json[] literal, and a
+  // list cannot take dbgenerated(). Creates must pass rawEvents: [] explicitly.
+  rawEvents          Json[] // every webhook payload received
+
+  // derived from org.dataRetentionDays, for cleanup jobs
+  retentionExpiresAt TimestamptzString?
+
+  createdAt TimestamptzString @default(now())
+
+  transcriptLines CallTranscriptLine[]
+  tags            CallTag[]
+
+  @@index([organizationId, createdAt])
+  @@index([agentId])
+  @@index([status])
+}
+
+// Optional granular turn-by-turn transcript, useful for analytics/QA later.
+// Kept separate from Call.transcript (the flat text version) on purpose.
+model CallTranscriptLine {
+  id       String         @id @default(uuid())
+  callId   String
+  call     Call           @relation(fields: [callId], references: [id], onDelete: Cascade)
+  role     TranscriptRole
+  content  String
+  offsetMs Int // ms from call start
+
+  @@index([callId, offsetMs])
+}
+
+// Free-form labels for analytics: "booking", "complaint", "missed-info", etc.
+model CallTag {
+  id     String @id @default(uuid())
+  callId String
+  call   Call   @relation(fields: [callId], references: [id], onDelete: Cascade)
+  label  String
+
+  @@unique([callId, label])
+}
+
+// =============================================================================
+// PUBLIC DEMO FUNNEL (landing page, not tenant data)
+// =============================================================================
+
+model DemoLead {
+  id          String  @id @default(uuid())
+  orgName     String
+  contactName String?
+  email       String
+  phone       String
+  location    String
+  timezone    String
+  opensAt     String
+  closesAt    String
+  industry    String?
+  extraNotes  String?
+
+  ipHash      String
+  userAgent   String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  referrer    String?
+
+  status                  DemoLeadStatus @default(NEW)
+  convertedOrganizationId String?
+  convertedOrganization   Organization?  @relation("DemoLeadConvertedOrg", fields: [convertedOrganizationId], references: [id])
+  convertedAt             TimestamptzString?
+
+  createdAt TimestamptzString @default(now())
+
+  calls  DemoCall[]
+  events DemoEvent[]
+
+  @@index([email])
+  @@index([ipHash, createdAt])
+}
+
+model DemoCall {
+  id           String     @id @default(uuid())
+  demoLeadId   String
+  demoLead     DemoLead   @relation(fields: [demoLeadId], references: [id], onDelete: Cascade)
+  retellCallId String?    @unique
+  status       CallStatus @default(REGISTERED)
+  startedAt    TimestamptzString?
+  endedAt      TimestamptzString?
+  durationMs   Int?
+  transcript   String?
+  summary      String?
+  costCents    Int?       @default(0)
+  rawEvents    Json[] // no default — see Call.rawEvents
+  createdAt    TimestamptzString @default(now())
+
+  @@index([demoLeadId])
+}
+
+// Funnel analytics: form_viewed -> form_started -> submitted -> token_issued
+// -> connected -> ended -> email_sent -> signup_clicked -> signed_up
+model DemoEvent {
+  id         String    @id @default(uuid())
+  demoLeadId String?
+  demoLead   DemoLead? @relation(fields: [demoLeadId], references: [id], onDelete: SetNull)
+  sessionId  String // client-generated, groups anonymous events pre-lead
+  eventType  String
+  metadata   Json?
+  createdAt  TimestamptzString @default(now())
+
+  @@index([sessionId])
+  @@index([eventType, createdAt])
+}
+
+// =============================================================================
+// USAGE, BILLING
+// =============================================================================
+
+// Daily rollup, org-scoped (organizationId null = global/demo usage).
+model UsageCounter {
+  id             String        @id @default(uuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  periodDate     DateString
+  callsCount     Int           @default(0)
+  minutesUsed    Float         @default(0)
+  costCents      Int           @default(0)
+
+  @@unique([organizationId, periodDate])
+}
+
+model Subscription {
+  id                        String             @id @default(uuid())
+  organizationId            String             @unique
+  organization              Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stripeSubscriptionId      String             @unique
+  stripePriceId             String
+  plan                      Plan
+  status                    SubscriptionStatus
+  minutesIncluded           Int
+  overageRateCentsPerMinute Int
+  currentPeriodStart        TimestamptzString
+  currentPeriodEnd          TimestamptzString
+  cancelAtPeriodEnd         Boolean            @default(false)
+  canceledAt                TimestamptzString?
+  createdAt                 TimestamptzString  @default(now())
+  updatedAt                 temporal.updatedAtString()
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stripeInvoiceId String        @unique
+  amountCents     Int
+  status          InvoiceStatus
+  periodStart     TimestamptzString
+  periodEnd       TimestamptzString
+  pdfUrl          String?
+  paidAt          TimestamptzString?
+  createdAt       TimestamptzString @default(now())
+
+  @@index([organizationId])
+}
+
+// =============================================================================
+// ADMIN / OPS (superuser dashboard)
+// =============================================================================
+
+model FeatureFlag {
+  id             String           @id @default(uuid())
+  key            String // e.g. "demo.enabled", "agent.transfer.beta"
+  description    String?
+  enabled        Boolean          @default(false)
+  payload        Json?
+  scope          FeatureFlagScope @default(GLOBAL)
+  organizationId String?
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedAt      temporal.updatedAtString()
+
+  @@unique([key, organizationId])
+}
+
+// Global operational switches that don't fit the flag model well
+// (e.g. numeric budgets rather than booleans).
+model SystemSetting {
+  key       String @id // "demo.dailyBudgetCents", "demo.maxConcurrentCalls"
+  value     Json
+  updatedAt temporal.updatedAtString()
+}
+
+model AuditLog {
+  id             String         @id @default(uuid())
+  organizationId String?
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorType      AuditActorType
+  actorUserId    String?
+  actorUser      User?          @relation("AuditActorUser", fields: [actorUserId], references: [id])
+  action         String // "agent.published", "member.invited", "org.suspended"
+  targetType     String
+  targetId       String
+  diff           Json?
+  ipAddress      String?
+  createdAt      TimestamptzString @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([targetType, targetId])
+}
+
+// Generic inbound-webhook log, separate from Call.rawEvents, for
+// signature/debug/replay purposes across every provider (Retell, Stripe...).
+model WebhookEvent {
+  id             String          @id @default(uuid())
+  provider       WebhookProvider
+  eventType      String
+  signatureValid Boolean
+  payload        Json
+  processedAt    TimestamptzString?
+  error          String?
+  createdAt      TimestamptzString @default(now())
+
+  @@index([provider, eventType])
+}
+
+// =============================================================================
+// NOTIFICATIONS, API ACCESS, INTEGRATIONS
+// =============================================================================
+
+model Notification {
+  id             String           @id @default(uuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           NotificationType
+  title          String
+  body           String?
+  isRead         Boolean          @default(false)
+  readAt         TimestamptzString?
+  createdAt      TimestamptzString @default(now())
+
+  @@index([userId, isRead])
+}
+
+// Public API access (backlog item) — scaffolded now so adding it later
+// doesn't require a breaking migration.
+model ApiKey {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  hashedKey       String       @unique
+  lastUsedAt      TimestamptzString?
+  createdByUserId String?
+  createdBy       User?        @relation("ApiKeyCreatedBy", fields: [createdByUserId], references: [id])
+  revokedByUserId String?
+  revokedBy       User?        @relation("ApiKeyRevokedBy", fields: [revokedByUserId], references: [id])
+  revokedAt       TimestamptzString?
+  createdAt       TimestamptzString @default(now())
+
+  @@index([organizationId])
+}
+
+// Third-party connections (calendar, CRM, POS) — backlog, scaffolded.
+model Integration {
+  id                   String       @id @default(uuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider             String // "google_calendar", "square", "hubspot"...
+  status               String       @default("disconnected")
+  encryptedCredentials String?
+  metadata             Json?
+  connectedAt          TimestamptzString?
+  createdAt            TimestamptzString @default(now())
+
+  @@unique([organizationId, provider])
+}
+
+// =============================================================================
+// SECTOR TEMPLATES (data-driven scalability across industries)
+// =============================================================================
+
+// Sector differences must live in data, never in code branches. This model
+// backs the "choose your sector" step in onboarding and the demo, and seeds
+// AgentVersion.promptTemplate / variablesSchema defaults.
+model SectorTemplate {
+  id                     String  @id @default(uuid())
+  key                    String  @unique // "restaurant", "clinic", "repair_shop"...
+  label                  String
+  description            String?
+  icon                   String?
+  defaultPromptTemplate  String
+  defaultVariablesSchema Json
+  isActive               Boolean @default(true)
+  createdAt              TimestamptzString @default(now())
+  updatedAt              temporal.updatedAtString()
+}

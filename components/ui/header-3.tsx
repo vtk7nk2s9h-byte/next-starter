@@ -50,7 +50,7 @@ type LinkItem = {
 const barItem =
     'rounded-none border-b-2 border-transparent px-1 pb-0.5 ' +
     'transition-[color,border-color,box-shadow] duration-200 ' +
-    'hover:border-brand-red hover:text-brand-red hover:shadow-[0_5px_12px_-8px_rgba(201,57,74,0.95)]';
+    'hover:border-brand-red hover:text-brand-red hover:shadow-[0_5px_12px_-8px_rgba(140,25,37,0.95)]';
 
 // Buttons keep their full outline — they are controls, not labels — so they get
 // the colour shift without the underline.
@@ -206,7 +206,7 @@ export function Header() {
                     <DoorButton
                         label="Log in"
                         variant="bar"
-                        onStart={() => router.push('/login')}
+                        onStartAction={() => router.push('/login')}
                     />
                     <ThemeToggle></ThemeToggle>
                 </div>
@@ -246,7 +246,7 @@ export function Header() {
                     <DoorButton
                         label="Log in"
                         variant="brand"
-                        onStart={() => {
+                        onStartAction={() => {
                             router.push('/login');
                             setOpen(false);
                         }}

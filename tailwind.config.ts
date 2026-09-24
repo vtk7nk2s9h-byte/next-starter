@@ -1,4 +1,8 @@
 import type { Config } from 'tailwindcss';
+// Imports rather than require(): package.json is "type": "module" since
+// `prisma orm init`, so CommonJS calls are no longer safe in this file.
+import forms from '@tailwindcss/forms';
+import animate from 'tailwindcss-animate';
 
 const config: Config = {
   // The toggle puts a .dark class on <html>; without this, dark: utilities
@@ -15,6 +19,11 @@ const config: Config = {
         '13': 'repeat(13, minmax(0, 1fr))',
       },
       keyframes: {
+        // Specular sweep travelling along a section heading's underline.
+        'rule-shine': {
+          '0%': { transform: 'translateX(-120%)' },
+          '55%, 100%': { transform: 'translateX(420%)' },
+        },
         'm-pulse': {
           '0%, 100%': {
             transform: 'scale(1)',
@@ -28,6 +37,7 @@ const config: Config = {
       },
       animation: {
         'm-pulse': 'm-pulse 2.4s ease-in-out infinite',
+        'rule-shine': 'rule-shine 3.6s ease-in-out infinite',
       },
       colors: {
         // shadcn/ui semantic tokens, backed by the CSS variables in global.css.
@@ -65,7 +75,12 @@ const config: Config = {
           foreground: 'hsl(var(--card-foreground))',
         },
         // The system red: the wordmark letters and every header hover state.
-        'brand-red': '#c9394a',
+        // The planet's limb red — the globe derives it as #ff2e43 x 0.55.
+        'brand-red': '#8c1925',
+        // The globe's limb red itself, undimmed. The lit end of the pair: use
+        // it where red has to carry on black (a heading's first letter, a card
+        // icon, a streak), where #8c1925 would go muddy.
+        'brand-red-lit': '#ff2e43',
         // Brand accent. 500 is the primary; 400 lightens for hover, 600 for
         // pressed/active. Matches the --accent of the navigation menu.
         maroon: {
@@ -81,17 +96,19 @@ const config: Config = {
           900: '#20070b',
         },
         // Near-black surfaces. 900 matches the --bar of the navigation menu.
+        // Wine-tinted rather than neutral, and the dark end is pulled down to
+        // the globe's ground so a bar or panel doesn't float above the page.
         ink: {
-          50: '#f6f5f6',
-          100: '#e9e7e9',
-          200: '#d0cbcd',
-          300: '#a9a2a5',
-          400: '#736b6f',
-          500: '#4c4548',
-          600: '#332e31',
-          700: '#232023',
-          800: '#1a171a',
-          900: '#121013',
+          50: '#f6f4f5',
+          100: '#e9e6e7',
+          200: '#d0c9cb',
+          300: '#a99fa2',
+          400: '#73676a',
+          500: '#4c4043',
+          600: '#33272b',
+          700: '#1f1418',
+          800: '#140a0d',
+          900: '#0b0406',
         },
         // Dark-first neutrals, warmed toward the brand hue. The ramp is
         // inverted relative to Tailwind's: low numbers are near-black surfaces,
@@ -100,21 +117,25 @@ const config: Config = {
         // without touching the call sites. The middle of the ramp is lifted
         // rather than mirrored, so text-gray-400/500 stay readable on black.
         gray: {
-          // Elevation ladder. The page ground is #0a0809, so 50 sits above it
+          // Elevation ladder. The page ground is #090203, so 50 sits above it
           // rather than matching it — panels have to read as raised surfaces,
           // not holes. Each step warms slightly, as a surface closer to the
           // key light would.
-          50: '#121013', //  panel on page
-          100: '#1c1719', //  card on panel
-          200: '#2b2529', //  border / divider
-          300: '#4a4145', //  dim + disabled text
-          400: '#7d7376', //  tertiary text
-          500: '#a09699', //  muted body text
-          600: '#bdb4b7', //  secondary text
-          700: '#d6cfd1',
-          800: '#eae5e6',
-          900: '#f7f4f5', //  primary text
-          950: '#fcfbfb',
+          //
+          // The whole ramp carries the brand's hue now. Neutral greys on a
+          // wine-black ground read as a separate, lighter material, which is
+          // what made panels look pasted onto the page instead of lit by it.
+          50: '#120a0c', //  panel on page
+          100: '#1a1012', //  card on panel
+          200: '#291619', //  border / divider
+          300: '#4a3338', //  dim + disabled text
+          400: '#7d666b', //  tertiary text
+          500: '#a08f93', //  muted body text
+          600: '#bdaeb1', //  secondary text
+          700: '#d6cbcd',
+          800: '#eae3e4',
+          900: '#f7f2f3', //  primary text
+          950: '#fcfafa',
         },
       },
     },
@@ -126,6 +147,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [require('@tailwindcss/forms'), require('tailwindcss-animate')],
+  plugins: [forms, animate],
 };
 export default config;

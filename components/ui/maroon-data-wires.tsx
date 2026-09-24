@@ -51,10 +51,16 @@ function hexToRgb(color: string) {
  * tracked on window, so it still responds from underneath the content.
  */
 export default function MaroonDataWires({
-  baseColor = "#0a0809",
-  wireColor = "#5e1622",
-  glowColor = "#c9394a",
-  intensity = 1,
+  // Tuned against ScrollGlobe, which is the darkest thing on the page and sets
+  // the house style: a vinous near-black ground carrying one vivid red. The
+  // ground is the globe's #090203 family; the streaks borrow its limb red
+  // outright, so the field reads as black-and-red rather than washed maroon.
+  baseColor = "#070203",
+  wireColor = "#4a1119",
+  glowColor = "#ff2e43",
+  // Below 1 because the glow colour is now four times brighter than the old
+  // maroon — same perceived energy, far less lift on the black.
+  intensity = 0.85,
   speed = 0.3,
   wireDensity = 1,
   scrollResponse = 1,
@@ -139,12 +145,15 @@ export default function MaroonDataWires({
         width * 0.8
       )
       vignette.addColorStop(0, "rgba(0,0,0,0)")
-      vignette.addColorStop(1, "rgba(0,0,0,0.72)")
+      vignette.addColorStop(1, "rgba(0,0,0,0.84)")
 
+      // A warm sheen rather than the white wash this used to be: neutral white
+      // at 0.03 was lifting the whole top-left off the black and greying the
+      // red, which is what read as "the site is lighter than the globe".
       glass = ctx.createLinearGradient(0, 0, width, height)
-      glass.addColorStop(0, "rgba(255,255,255,0.05)")
-      glass.addColorStop(0.45, "rgba(255,255,255,0)")
-      glass.addColorStop(1, "rgba(0,0,0,0.28)")
+      glass.addColorStop(0, "rgba(255,214,220,0.012)")
+      glass.addColorStop(0.45, "rgba(0,0,0,0)")
+      glass.addColorStop(1, "rgba(0,0,0,0.42)")
     }
 
     const draw = (dt: number) => {
@@ -175,9 +184,9 @@ export default function MaroonDataWires({
 
       // Restrained surge: the scroll response stays legible without the field
       // tearing across the screen.
-      drift += dt * rate * (1 + surge * 5)
-      streakPhase += dt * rate * (1 + surge * 6)
-      shimmer += dt * rate * (1 + surge * 1.5)
+      drift += dt * rate * (1 + surge * 1.8)
+      streakPhase += dt * rate * (1 + surge * 2.2)
+      shimmer += dt * rate * (1 + surge * 0.8)
 
       const step = Math.max(12, Math.round(22 / density))
       // Position is driven only by `drift`, which advances on its own clock.
@@ -205,7 +214,7 @@ export default function MaroonDataWires({
         ctx.lineTo(width, y)
       }
       ctx.lineWidth = 1
-      ctx.strokeStyle = `rgba(${wire},${0.1 + power * 0.07 + surge * 0.06})`
+      ctx.strokeStyle = `rgba(${wire},${0.045 + power * 0.035 + surge * 0.03})`
       ctx.stroke()
 
       ctx.globalCompositeOperation = "lighter"
@@ -217,7 +226,7 @@ export default function MaroonDataWires({
       band.addColorStop(clamp(sweep - 0.22, 0, 1), "rgba(0,0,0,0)")
       band.addColorStop(
         clamp(sweep, 0, 1),
-        `rgba(${wire},${0.07 + power * 0.05})`
+        `rgba(${wire},${0.05 + power * 0.035})`
       )
       band.addColorStop(clamp(sweep + 0.22, 0, 1), "rgba(0,0,0,0)")
       ctx.fillStyle = band
@@ -232,7 +241,10 @@ export default function MaroonDataWires({
       // pixels shaded every frame, on top of a main thread already busy with
       // the scroll itself.
       const len = Math.max(90, step * (9 + power * 3)) * (1 + surge * 0.8)
-      const alpha = 0.5 + power * 0.3 + surge * 0.35
+      // Pulled down from 0.3/0.18 alongside the colour swap: these composite
+      // with "lighter", so a vivid red at the old alpha would add far more
+      // luminance to the ground than the maroon it replaced.
+      const alpha = 0.2 + power * 0.14 + surge * 0.18
 
       for (let i = 0; i < streaks; i++) {
         const vertical = i % 2 === 0
